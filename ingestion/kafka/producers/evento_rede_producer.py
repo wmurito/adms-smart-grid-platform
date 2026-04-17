@@ -43,6 +43,8 @@ from schemas import (
     ClasseInterrupcao,
     novo_evento_id,
     timestamp_utc_agora,
+    Alarme,
+    novo_alarme_id,
 )
 
 # ---------------------------------------------------------------------------
@@ -178,6 +180,122 @@ def gerar_evento_rede() -> EventoRede:
         timestamp_evento=agora,
         timestamp_ingestao=agora,
     )
+
+
+# ---------------------------------------------------------------------------
+# Compatibilidade OOP para o run_simuladores.py
+# ---------------------------------------------------------------------------
+
+class EventoRedeGerador:
+    """Wrapper OOP sobre gerar_evento_rede() para uso pelo orquestrador."""
+    def __init__(self, seed: int = 42):
+        random.seed(seed)
+
+    def gerar_evento(self) -> EventoRede:
+        return gerar_evento_rede()
+
+
+def evento_para_alarme(evento: EventoRede) -> "Alarme | None":
+    """Converte um EventoRede de alta severidade em Alarme, ou retorna None."""
+    if evento.severidade in (SeveridadeEvento.CRITICO.value, SeveridadeEvento.ALTO.value):
+        return Alarme(
+            alarme_id=novo_alarme_id(),
+            tipo_alarme=f"ALARME_{evento.tipo_evento}",
+            severidade=evento.severidade,
+            descricao=f"Alarme gerado a partir de evento: {evento.tipo_evento}",
+            subestacao_id=evento.subestacao_id,
+            alimentador_id=evento.alimentador_id,
+            equipamento_id=evento.equipamento_id,
+            valor_medido=evento.corrente_a,
+            valor_limite=0.0,
+            unidade="A",
+            acao_recomendada="Despachar equipe de manutencao",
+            requer_desligamento=(evento.severidade == SeveridadeEvento.CRITICO.value),
+            timestamp_alarme=evento.timestamp_evento,
+            timestamp_ingestao=timestamp_utc_agora(),
+            evento_id_origem=evento.evento_id,
+        )
+    return None
+
+
+class ADMSEventoProducer:
+    """Producer Kafka OOP para eventos e alarmes — usa kafka-python."""
+
+    def __init__(self, bootstrap_servers: str, dry_run: bool = False):
+        self._dry_run = dry_run
+        self._producer = None
+        self._bootstrap = bootstrap_servers
+        if not dry_run:
+            self._conectar()
+
+    def _conectar(self, tentativas: int = 5, espera: float = 2.0):
+        from kafka import KafkaProducer
+        from kafka.errors import NoBrokersAvailable
+        for i in range(tentativas):
+            try:
+                self._producer = KafkaProducer(
+                    bootstrap_servers=self._bootstrap,
+                    value_serializer=lambda v: v,   # payload ja e bytes
+                    key_serializer=lambda k: k,     # key ja e bytes
+                    acks=1,
+                    compression_type="gzip",
+                    linger_ms=5,
+                )
+                logger.info(
+                    "ADMSEventoProducer conectado: %s", self._bootstrap
+                )
+                return
+            except NoBrokersAvailable:
+                if i < tentativas - 1:
+                    logger.warning(
+                        "Kafka indisponivel (tentativa %d/%d), aguardando %.0fs...",
+                        i + 1, tentativas, espera,
+                    )
+                    import time
+                    time.sleep(espera)
+                else:
+                    logger.error(
+                        "Nao foi possivel conectar ao Kafka após %d tentativas.", tentativas
+                    )
+
+    def publicar_evento(self, evento: EventoRede) -> bool:
+        if self._dry_run:
+            return True
+        if not self._producer:
+            return False
+        try:
+            payload = json.dumps(evento.to_dict(), ensure_ascii=False).encode("utf-8")
+            self._producer.send(
+                TOPICO,
+                key=evento.to_kafka_key().encode("utf-8"),
+                value=payload,
+            )
+            return True
+        except Exception as e:
+            logger.error("Erro ao publicar evento: %s", e)
+            return False
+
+    def publicar_alarme(self, alarme: Alarme) -> bool:
+        if self._dry_run:
+            return True
+        if not self._producer:
+            return False
+        try:
+            payload = json.dumps(alarme.to_dict(), ensure_ascii=False).encode("utf-8")
+            self._producer.send(
+                "adms.alarmes",
+                key=alarme.to_kafka_key().encode("utf-8"),
+                value=payload,
+            )
+            return True
+        except Exception as e:
+            logger.error("Erro ao publicar alarme: %s", e)
+            return False
+
+    def fechar(self):
+        if self._producer:
+            self._producer.flush()
+            self._producer.close()
 
 
 # ---------------------------------------------------------------------------

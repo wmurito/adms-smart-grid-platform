@@ -389,18 +389,35 @@ class MedidorProducer:
         self._erros = 0
 
         if not dry_run:
-            self._producer = KafkaProducer(
-                bootstrap_servers=bootstrap_servers,
-                value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
-                key_serializer=lambda k: k.encode("utf-8"),
-                acks=1,                     # menor latência para volume alto
-                compression_type="gzip",
-                batch_size=32768,
-                linger_ms=50,               # agrupa mais mensagens (volume alto)
-            )
-            logger.info(f"Producer conectado: {bootstrap_servers}")
+            self._conectar(bootstrap_servers)
         else:
             logger.warning("Modo DRY-RUN ativo")
+
+    def _conectar(self, bootstrap_servers: str, tentativas: int = 5, espera: float = 2.0):
+        from kafka.errors import NoBrokersAvailable
+        for i in range(tentativas):
+            try:
+                self._producer = KafkaProducer(
+                    bootstrap_servers=bootstrap_servers,
+                    value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
+                    key_serializer=lambda k: k.encode("utf-8"),
+                    acks=1,
+                    compression_type="gzip",
+                    batch_size=32768,
+                    linger_ms=50,
+                )
+                logger.info(f"MedidorProducer conectado: {bootstrap_servers}")
+                return
+            except NoBrokersAvailable:
+                if i < tentativas - 1:
+                    logger.warning(
+                        f"Kafka indisponivel (tentativa {i+1}/{tentativas}), aguardando {espera:.0f}s..."
+                    )
+                    time.sleep(espera)
+                else:
+                    logger.error(
+                        f"Nao foi possivel conectar ao Kafka apos {tentativas} tentativas."
+                    )
 
     def publicar(self, leitura: LeituraMedidor) -> bool:
         topico = "adms.leituras.medidor"
