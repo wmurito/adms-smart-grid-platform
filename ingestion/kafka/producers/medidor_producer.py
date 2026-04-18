@@ -32,6 +32,7 @@ from kafka import KafkaProducer
 from kafka.errors import KafkaError
 from loguru import logger
 
+from kafka_config import get_producer_config
 from topologia import ALIMENTADORES, SUBESTACAO_MAP, Alimentador
 from schemas import (
     LeituraMedidor, TipoMedidor,
@@ -389,7 +390,12 @@ class MedidorProducer:
         self._erros = 0
 
         if not dry_run:
-            self._conectar(bootstrap_servers)
+            cfg = get_producer_config(acks=1, compression="gzip", batch_size=32768, linger_ms=50)
+            self._producer = KafkaProducer(
+                **cfg,
+                value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
+                key_serializer=lambda k: k.encode("utf-8"),
+            )
         else:
             logger.warning("Modo DRY-RUN ativo")
 

@@ -21,6 +21,9 @@ import sys
 import time
 from datetime import datetime, timezone
 
+from kafka import KafkaProducer
+from kafka_config import get_producer_config
+
 # ---------------------------------------------------------------------------
 # Importações internas do projeto
 # ---------------------------------------------------------------------------
@@ -226,7 +229,13 @@ class ADMSEventoProducer:
         self._producer = None
         self._bootstrap = bootstrap_servers
         if not dry_run:
-            self._conectar()
+            cfg = get_producer_config(acks="all", compression="gzip", batch_size=16384, linger_ms=10)
+            self._producer = KafkaProducer(
+                **cfg,
+                value_serializer=lambda v: json.dumps(v, ensure_ascii=False).encode("utf-8"),
+                key_serializer=lambda k: k.encode("utf-8"),
+            )
+            logger.info(f"Kafka producer conectado: {cfg['bootstrap_servers']}")
 
     def _conectar(self, tentativas: int = 5, espera: float = 2.0):
         from kafka import KafkaProducer
@@ -264,11 +273,10 @@ class ADMSEventoProducer:
         if not self._producer:
             return False
         try:
-            payload = json.dumps(evento.to_dict(), ensure_ascii=False).encode("utf-8")
             self._producer.send(
                 TOPICO,
-                key=evento.to_kafka_key().encode("utf-8"),
-                value=payload,
+                key=evento.to_kafka_key(),
+                value=evento.to_dict(),
             )
             return True
         except Exception as e:
@@ -281,11 +289,10 @@ class ADMSEventoProducer:
         if not self._producer:
             return False
         try:
-            payload = json.dumps(alarme.to_dict(), ensure_ascii=False).encode("utf-8")
             self._producer.send(
                 "adms.alarmes",
-                key=alarme.to_kafka_key().encode("utf-8"),
-                value=payload,
+                key=alarme.to_kafka_key(),
+                value=alarme.to_dict(),
             )
             return True
         except Exception as e:
