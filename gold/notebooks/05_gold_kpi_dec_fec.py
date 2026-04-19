@@ -349,11 +349,6 @@ ORDER BY dec_medio_horas DESC
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Próximos passos
-# MAGIC - Executar `06_gold_saude_ativos` — índice de saúde de equipamentos
-# MAGIC - Executar `07_gold_perdas_comerciais` — estimativa de perdas por regional
-# MAGIC - Conectar tabela Gold ao Power BI via Microsoft Fabric (Fase 5)
-# MAGIC
 # MAGIC ## Consultas úteis
 # MAGIC ```sql
 # MAGIC -- Alimentadores em violação DEC

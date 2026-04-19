@@ -308,7 +308,4 @@ if total > 0:
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## Próximos passos
-# MAGIC - Executar `02_bronze_leituras_medidor` para ingerir as leituras AMI
-# MAGIC - Executar `03_silver_eventos_rede` para aplicar transformações e enriquecimento
 # MAGIC - Verificar tabela com: `SELECT * FROM adms.bronze.eventos_rede_raw LIMIT 10`

@@ -432,11 +432,3 @@ print("=== Score de criticidade médio por regional ===")
 # MAGIC GROUP BY regional, classe_aneel, faixa_criticidade
 # MAGIC ORDER BY clientes_afetados DESC
 # MAGIC LIMIT 20
-
-# COMMAND ----------
-
-# MAGIC %md
-# MAGIC ## Próximos passos
-# MAGIC - Executar `04_silver_leituras_medidor` para normalizar as leituras AMI
-# MAGIC - Executar `05_gold_kpi_dec_fec` para calcular os indicadores regulatórios ANEEL
-# MAGIC - Executar `06_gold_saude_ativos` para o índice de saúde da rede
