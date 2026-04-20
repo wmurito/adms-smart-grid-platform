@@ -1,0 +1,66 @@
+resources:
+  jobs:
+    adms_01_ingestao_bronze:
+      name: "[ADMS] 01 — Ingestão Bronze"
+      description: >
+        Publica eventos no Confluent Cloud via simulador Python
+        e ingere no Delta Lake Bronze via Spark Structured Streaming.
+        Trigger availableNow — processa todos os offsets disponíveis e encerra.
+
+      tags:
+        projeto: adms-smart-grid
+        camada: bronze
+        equipe: data-engineering
+
+      job_clusters:
+        - job_cluster_key: bronze_cluster
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: Standard_DS3_v2
+            num_workers: 1
+            spark_conf:
+              spark.databricks.delta.preview.enabled: "true"
+            data_security_mode: SINGLE_USER
+
+      tasks:
+        - task_key: simulador_kafka
+          description: "Publica eventos ADMS no Confluent Cloud por 5 minutos"
+          job_cluster_key: bronze_cluster
+          notebook_task:
+            notebook_path: ${var.notebook_path}/ingestion/kafka/simulador_runner
+            base_parameters:
+              duration_seconds: "300"
+              eventos_rate: "5"
+              medidores_rate: "50"
+          timeout_seconds: 420
+          max_retries: 1
+          retry_on_timeout: true
+
+        - task_key: bronze_eventos_rede
+          description: "Ingere adms.eventos.rede → adms.bronze.eventos_rede_raw"
+          depends_on:
+            - task_key: simulador_kafka
+          job_cluster_key: bronze_cluster
+          notebook_task:
+            notebook_path: ${var.notebook_path}/bronze/notebooks/01_bronze_eventos_rede
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 600
+          max_retries: 2
+
+        - task_key: bronze_leituras_medidor
+          description: "Ingere adms.leituras.medidor → adms.bronze.leituras_medidor_raw"
+          depends_on:
+            - task_key: simulador_kafka
+          job_cluster_key: bronze_cluster
+          notebook_task:
+            notebook_path: ${var.notebook_path}/bronze/notebooks/02_bronze_leituras_medidor
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 600
+          max_retries: 2
+
+      queue:
+        enabled: true
+
+      max_concurrent_runs: 1

@@ -1,0 +1,137 @@
+resources:
+  jobs:
+    adms_00_pipeline_completo:
+      name: "[ADMS] 00 — Pipeline Completo (End-to-End)"
+      description: >
+        Orquestrador mestre do projeto ADMS Smart Grid Data Platform.
+        Executa Bronze → Silver → Gold em sequência com dependências explícitas.
+        Execute manualmente via UI ou CLI: databricks bundle run adms_00_pipeline_completo
+
+      tags:
+        projeto: adms-smart-grid
+        camada: orquestracao
+        equipe: data-engineering
+
+      job_clusters:
+        - job_cluster_key: pipeline_cluster
+          new_cluster:
+            spark_version: "15.4.x-scala2.12"
+            node_type_id: Standard_DS3_v2
+            num_workers: 2
+            spark_conf:
+              spark.databricks.delta.preview.enabled: "true"
+              spark.sql.shuffle.partitions: "8"
+            data_security_mode: SINGLE_USER
+
+      tasks:
+
+        # ── CAMADA BRONZE ────────────────────────────────────────────
+        - task_key: simulador_kafka
+          description: "Publica eventos ADMS no Confluent Cloud (5 min)"
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ${var.notebook_path}/ingestion/kafka/simulador_runner
+            base_parameters:
+              duration_seconds: "300"
+              eventos_rate: "5"
+              medidores_rate: "50"
+          timeout_seconds: 420
+          max_retries: 1
+
+        - task_key: bronze_eventos
+          description: "Kafka → Delta Bronze: eventos_rede_raw"
+          depends_on:
+            - task_key: simulador_kafka
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ${var.notebook_path}/bronze/notebooks/01_bronze_eventos_rede
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 600
+          max_retries: 2
+
+        - task_key: bronze_leituras
+          description: "Kafka → Delta Bronze: leituras_medidor_raw"
+          depends_on:
+            - task_key: simulador_kafka
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ${var.notebook_path}/bronze/notebooks/02_bronze_leituras_medidor
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 600
+          max_retries: 2
+
+        # ── CAMADA SILVER ────────────────────────────────────────────
+        - task_key: silver_eventos
+          description: "Bronze → Silver: eventos_rede_enriquecido"
+          depends_on:
+            - task_key: bronze_eventos
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ${var.notebook_path}/silver/notebooks/03_silver_eventos_rede
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 900
+          max_retries: 1
+
+        - task_key: silver_leituras
+          description: "Bronze → Silver: leituras_medidor_norm"
+          depends_on:
+            - task_key: bronze_leituras
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ${var.notebook_path}/silver/notebooks/04_silver_leituras_medidor
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 900
+          max_retries: 1
+
+        # ── CAMADA GOLD ──────────────────────────────────────────────
+        - task_key: gold_dec_fec
+          description: "Silver → Gold: kpi_dec_fec_mensal (ANEEL)"
+          depends_on:
+            - task_key: silver_eventos
+            - task_key: silver_leituras
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ${var.notebook_path}/gold/notebooks/05_gold_kpi_dec_fec
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 600
+          max_retries: 1
+
+        - task_key: gold_saude_ativos
+          description: "Silver → Gold: saude_ativo_alimentador"
+          depends_on:
+            - task_key: gold_dec_fec
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ${var.notebook_path}/gold/notebooks/06_gold_saude_ativos
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 600
+          max_retries: 1
+
+        - task_key: gold_perdas_comerciais
+          description: "Silver → Gold: perdas_comerciais_regional"
+          depends_on:
+            - task_key: gold_dec_fec
+          job_cluster_key: pipeline_cluster
+          notebook_task:
+            notebook_path: ${var.notebook_path}/gold/notebooks/07_gold_perdas_comerciais
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 600
+          max_retries: 1
+
+      queue:
+        enabled: true
+
+      max_concurrent_runs: 1
+
+      # Para ativar schedule no futuro, descomentar:
+      # schedule:
+      #   quartz_cron_expression: "0 0 9 * * ?"  # 06h BRT (UTC-3) = 09h UTC
+      #   timezone_id: "UTC"
+      #   pause_status: UNPAUSED

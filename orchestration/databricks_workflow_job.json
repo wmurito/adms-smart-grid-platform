@@ -1,0 +1,149 @@
+{
+  "name": "ADMS Smart Grid — Pipeline Medallion",
+  "description": "Orquestração completa Bronze → Silver → Gold para o ADMS Smart Grid Platform",
+  "email_notifications": {
+    "on_failure": [],
+    "no_alert_for_skipped_runs": false
+  },
+  "webhook_notifications": {},
+  "timeout_seconds": 7200,
+  "schedule": {
+    "quartz_cron_expression": "0 0 6 * * ?",
+    "timezone_id": "America/Sao_Paulo",
+    "pause_status": "PAUSED"
+  },
+  "max_concurrent_runs": 1,
+  "job_clusters": [
+    {
+      "job_cluster_key": "adms_job_cluster",
+      "new_cluster": {
+        "spark_version": "14.3.x-scala2.12",
+        "node_type_id": "i3.xlarge",
+        "num_workers": 0,
+        "spark_conf": {
+          "spark.databricks.cluster.profile": "singleNode",
+          "spark.master": "local[*, 4]"
+        },
+        "custom_tags": {
+          "ResourceClass": "SingleNode",
+          "project": "adms-smart-grid"
+        },
+        "spark_env_vars": {
+          "DATABRICKS_CATALOG": "adms"
+        },
+        "enable_elastic_disk": true,
+        "runtime_engine": "STANDARD"
+      }
+    }
+  ],
+  "tasks": [
+    {
+      "task_key": "bronze_eventos_rede",
+      "description": "Ingestão Kafka → Delta Lake Bronze (Eventos de Rede)",
+      "notebook_task": {
+        "notebook_path": "/Workspace/adms-smart-grid-platform/bronze/notebooks/01_bronze_eventos_rede",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "adms_job_cluster",
+      "timeout_seconds": 1800,
+      "max_retries": 2,
+      "min_retry_interval_millis": 60000,
+      "retry_on_timeout": false
+    },
+    {
+      "task_key": "bronze_leituras_medidor",
+      "description": "Ingestão Kafka → Delta Lake Bronze (Leituras de Medidor)",
+      "notebook_task": {
+        "notebook_path": "/Workspace/adms-smart-grid-platform/bronze/notebooks/02_bronze_leituras_medidor",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "adms_job_cluster",
+      "timeout_seconds": 1800,
+      "max_retries": 2,
+      "min_retry_interval_millis": 60000,
+      "retry_on_timeout": false
+    },
+    {
+      "task_key": "silver_eventos_rede",
+      "description": "Transformação Bronze → Silver (Eventos de Rede Enriquecido)",
+      "depends_on": [
+        { "task_key": "bronze_eventos_rede" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/adms-smart-grid-platform/silver/notebooks/03_silver_eventos_rede",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "adms_job_cluster",
+      "timeout_seconds": 1800,
+      "max_retries": 1,
+      "min_retry_interval_millis": 30000,
+      "retry_on_timeout": false
+    },
+    {
+      "task_key": "silver_leituras_medidor",
+      "description": "Transformação Bronze → Silver (Leituras de Medidor Normalizadas)",
+      "depends_on": [
+        { "task_key": "bronze_leituras_medidor" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/adms-smart-grid-platform/silver/notebooks/04_silver_leituras_medidor",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "adms_job_cluster",
+      "timeout_seconds": 1800,
+      "max_retries": 1,
+      "min_retry_interval_millis": 30000,
+      "retry_on_timeout": false
+    },
+    {
+      "task_key": "gold_kpi_dec_fec",
+      "description": "KPI DEC/FEC Mensal ANEEL (Gold)",
+      "depends_on": [
+        { "task_key": "silver_eventos_rede" },
+        { "task_key": "silver_leituras_medidor" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/adms-smart-grid-platform/gold/notebooks/05_gold_kpi_dec_fec",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "adms_job_cluster",
+      "timeout_seconds": 900,
+      "max_retries": 1,
+      "min_retry_interval_millis": 30000,
+      "retry_on_timeout": false
+    },
+    {
+      "task_key": "gold_saude_ativos",
+      "description": "Saúde dos Ativos por Alimentador (Gold)",
+      "depends_on": [
+        { "task_key": "silver_eventos_rede" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/adms-smart-grid-platform/gold/notebooks/06_gold_saude_ativos",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "adms_job_cluster",
+      "timeout_seconds": 900,
+      "max_retries": 1,
+      "min_retry_interval_millis": 30000,
+      "retry_on_timeout": false
+    },
+    {
+      "task_key": "gold_perdas_comerciais",
+      "description": "Perdas Comerciais Regionais (Gold)",
+      "depends_on": [
+        { "task_key": "silver_leituras_medidor" }
+      ],
+      "notebook_task": {
+        "notebook_path": "/Workspace/adms-smart-grid-platform/gold/notebooks/07_gold_perdas_comerciais",
+        "source": "WORKSPACE"
+      },
+      "job_cluster_key": "adms_job_cluster",
+      "timeout_seconds": 900,
+      "max_retries": 1,
+      "min_retry_interval_millis": 30000,
+      "retry_on_timeout": false
+    }
+  ],
+  "format": "MULTI_TASK"
+}
