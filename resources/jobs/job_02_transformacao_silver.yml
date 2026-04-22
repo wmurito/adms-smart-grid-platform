@@ -1,4 +1,4 @@
-resources:
+﻿resources:
   jobs:
     adms_02_transformacao_silver:
       name: "[ADMS] 02 — Transformação Silver"
@@ -13,23 +13,11 @@ resources:
         camada: silver
         equipe: data-engineering
 
-      job_clusters:
-        - job_cluster_key: silver_cluster
-          new_cluster:
-            spark_version: "15.4.x-scala2.12"
-            node_type_id: Standard_DS3_v2
-            num_workers: 2
-            spark_conf:
-              spark.databricks.delta.preview.enabled: "true"
-              spark.sql.shuffle.partitions: "8"
-            data_security_mode: SINGLE_USER
-
       tasks:
         - task_key: silver_eventos_rede
           description: "Bronze → Silver eventos_rede_enriquecido"
-          job_cluster_key: silver_cluster
           notebook_task:
-            notebook_path: ${var.notebook_path}/silver/notebooks/03_silver_eventos_rede
+            notebook_path: ${workspace.file_path}/silver/notebooks/03_silver_eventos_rede.py
             base_parameters:
               catalog: ${var.catalog}
           timeout_seconds: 900
@@ -39,9 +27,8 @@ resources:
           description: "Bronze → Silver leituras_medidor_norm"
           depends_on:
             - task_key: silver_eventos_rede
-          job_cluster_key: silver_cluster
           notebook_task:
-            notebook_path: ${var.notebook_path}/silver/notebooks/04_silver_leituras_medidor
+            notebook_path: ${workspace.file_path}/silver/notebooks/04_silver_leituras_medidor.py
             base_parameters:
               catalog: ${var.catalog}
           timeout_seconds: 900

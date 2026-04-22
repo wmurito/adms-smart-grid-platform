@@ -1,6 +1,9 @@
 bundle:
   name: adms-smart-grid-platform
 
+include:
+  - resources/jobs/*.yml
+
 variables:
   catalog:
     default: adms

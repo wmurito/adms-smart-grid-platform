@@ -17,9 +17,16 @@ import sys
 import os
 
 # Ler parâmetros do Job (base_parameters)
-duration  = int(dbutils.widgets.get("duration_seconds")) if "duration_seconds" in [w.name for w in dbutils.widgets.getAll()] else 300
-ev_rate   = float(dbutils.widgets.get("eventos_rate"))   if "eventos_rate"   in [w.name for w in dbutils.widgets.getAll()] else 5.0
-med_rate  = float(dbutils.widgets.get("medidores_rate")) if "medidores_rate" in [w.name for w in dbutils.widgets.getAll()] else 50.0
+# Nota: em Serverless, dbutils.widgets.getAll() retorna lista de strings (não objetos)
+def _get_widget(name, default):
+    try:
+        return dbutils.widgets.get(name)
+    except Exception:
+        return default
+
+duration  = int(_get_widget("duration_seconds", 300))
+ev_rate   = float(_get_widget("eventos_rate", 5.0))
+med_rate  = float(_get_widget("medidores_rate", 50.0))
 
 print(f"Iniciando simulador ADMS:")
 print(f"  duration  : {duration}s")

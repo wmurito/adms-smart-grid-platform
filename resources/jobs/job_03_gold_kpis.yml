@@ -1,4 +1,4 @@
-resources:
+﻿resources:
   jobs:
     adms_03_gold_kpis:
       name: "[ADMS] 03 — Gold KPIs"
@@ -12,23 +12,11 @@ resources:
         camada: gold
         equipe: data-engineering
 
-      job_clusters:
-        - job_cluster_key: gold_cluster
-          new_cluster:
-            spark_version: "15.4.x-scala2.12"
-            node_type_id: Standard_DS3_v2
-            num_workers: 2
-            spark_conf:
-              spark.databricks.delta.preview.enabled: "true"
-              spark.sql.shuffle.partitions: "8"
-            data_security_mode: SINGLE_USER
-
       tasks:
         - task_key: gold_dec_fec
           description: "Silver → Gold kpi_dec_fec_mensal (ANEEL)"
-          job_cluster_key: gold_cluster
           notebook_task:
-            notebook_path: ${var.notebook_path}/gold/notebooks/05_gold_kpi_dec_fec
+            notebook_path: ${workspace.file_path}/gold/notebooks/05_gold_kpi_dec_fec.py
             base_parameters:
               catalog: ${var.catalog}
           timeout_seconds: 600
@@ -38,9 +26,8 @@ resources:
           description: "Silver → Gold saude_ativo_alimentador"
           depends_on:
             - task_key: gold_dec_fec
-          job_cluster_key: gold_cluster
           notebook_task:
-            notebook_path: ${var.notebook_path}/gold/notebooks/06_gold_saude_ativos
+            notebook_path: ${workspace.file_path}/gold/notebooks/06_gold_saude_ativos.py
             base_parameters:
               catalog: ${var.catalog}
           timeout_seconds: 600
@@ -50,9 +37,8 @@ resources:
           description: "Silver → Gold perdas_comerciais_regional"
           depends_on:
             - task_key: gold_dec_fec
-          job_cluster_key: gold_cluster
           notebook_task:
-            notebook_path: ${var.notebook_path}/gold/notebooks/07_gold_perdas_comerciais
+            notebook_path: ${workspace.file_path}/gold/notebooks/07_gold_perdas_comerciais.py
             base_parameters:
               catalog: ${var.catalog}
           timeout_seconds: 600
