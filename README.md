@@ -286,4 +286,4 @@ O projeto simula uma distribuidora de médio porte em Minas Gerais, endereçando
 **Wellington Murito**
 Data Engineer — Energisa | Co-desenvolvedor Projeto VIDA (AWS + Databricks)
 
-[LinkedIn](https://linkedin.com/in/seu-perfil) · [GitHub](https://github.com/seu-usuario)
+[LinkedIn](https://www.linkedin.com/in/wmurito/) · [GitHub](https://github.com/wmurito)
