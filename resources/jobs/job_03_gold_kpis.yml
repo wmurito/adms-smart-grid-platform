@@ -1,0 +1,50 @@
+﻿resources:
+  jobs:
+    adms_03_gold_kpis:
+      name: "[ADMS] 03 — Gold KPIs"
+      description: >
+        Calcula os KPIs regulatórios e índices de gestão da rede:
+        DEC/FEC ANEEL, saúde de ativos e perdas comerciais.
+        Roda em paralelo após Silver concluir.
+
+      tags:
+        projeto: adms-smart-grid
+        camada: gold
+        equipe: data-engineering
+
+      tasks:
+        - task_key: gold_dec_fec
+          description: "Silver → Gold kpi_dec_fec_mensal (ANEEL)"
+          notebook_task:
+            notebook_path: ${workspace.file_path}/gold/notebooks/05_gold_kpi_dec_fec.py
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 600
+          max_retries: 1
+
+        - task_key: gold_saude_ativos
+          description: "Silver → Gold saude_ativo_alimentador"
+          depends_on:
+            - task_key: gold_dec_fec
+          notebook_task:
+            notebook_path: ${workspace.file_path}/gold/notebooks/06_gold_saude_ativos.py
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 600
+          max_retries: 1
+
+        - task_key: gold_perdas_comerciais
+          description: "Silver → Gold perdas_comerciais_regional"
+          depends_on:
+            - task_key: gold_dec_fec
+          notebook_task:
+            notebook_path: ${workspace.file_path}/gold/notebooks/07_gold_perdas_comerciais.py
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 600
+          max_retries: 1
+
+      queue:
+        enabled: true
+
+      max_concurrent_runs: 1

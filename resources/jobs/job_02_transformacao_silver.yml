@@ -1,0 +1,40 @@
+﻿resources:
+  jobs:
+    adms_02_transformacao_silver:
+      name: "[ADMS] 02 — Transformação Silver"
+      description: >
+        Executa os notebooks Silver em sequência:
+        enriquecimento de eventos (topologia, ANEEL, scores)
+        e normalização de leituras de medidores (PRODIST M8, fraude).
+        Depende do Job Bronze ter sido executado com sucesso.
+
+      tags:
+        projeto: adms-smart-grid
+        camada: silver
+        equipe: data-engineering
+
+      tasks:
+        - task_key: silver_eventos_rede
+          description: "Bronze → Silver eventos_rede_enriquecido"
+          notebook_task:
+            notebook_path: ${workspace.file_path}/silver/notebooks/03_silver_eventos_rede.py
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 900
+          max_retries: 1
+
+        - task_key: silver_leituras_medidor
+          description: "Bronze → Silver leituras_medidor_norm"
+          depends_on:
+            - task_key: silver_eventos_rede
+          notebook_task:
+            notebook_path: ${workspace.file_path}/silver/notebooks/04_silver_leituras_medidor.py
+            base_parameters:
+              catalog: ${var.catalog}
+          timeout_seconds: 900
+          max_retries: 1
+
+      queue:
+        enabled: true
+
+      max_concurrent_runs: 1

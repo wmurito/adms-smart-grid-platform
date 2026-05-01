@@ -1,0 +1,25 @@
+bundle:
+  name: adms-smart-grid-platform
+
+include:
+  - resources/jobs/*.yml
+
+variables:
+  catalog:
+    default: adms
+  host:
+    default: https://dbc-d0211ef4-782b.cloud.databricks.com
+  notebook_path:
+    default: /Users/wellington_murito@hotmail.com/ADMS/adms-smart-grid-platform
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://dbc-d0211ef4-782b.cloud.databricks.com
+
+  prod:
+    mode: production
+    workspace:
+      host: https://dbc-d0211ef4-782b.cloud.databricks.com
